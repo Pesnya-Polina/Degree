@@ -1,8 +1,7 @@
 import numpy as np
 import pandas as pd
 import calendar
-from typing import List, NoReturn
-
+from typing import List, NoReturn, Iterable
 
 USD_HISTORY = None
 
@@ -14,7 +13,7 @@ class WindowFunctions:
         Возвращает среднее окна.
         """
         return [np.mean(df)]
-    
+
     @staticmethod
     def half_mean(df: pd.Series) -> List:
         """
@@ -22,7 +21,7 @@ class WindowFunctions:
         """
         sep = len(df) // 2
         return [np.mean(df[sep:])]
-    
+
     @staticmethod
     def quarter_mean(df: pd.Series) -> List:
         """
@@ -30,35 +29,35 @@ class WindowFunctions:
         """
         sep = len(df) // 4
         return [np.mean(df[-sep:])]
-    
+
     @staticmethod
     def window_max(df: pd.Series) -> List:
         """
         Возвращает максимум в окне.
         """
         return [np.max(df)]
-    
+
     @staticmethod
     def window_min(df: pd.Series) -> List:
         """
         Возвращает минимум в окне.
         """
         return [np.min(df)]
-    
+
     @staticmethod
     def window_var(df: pd.Series) -> List:
         """
         Возвращает средне квадратичное отклонение в окне.
         """
-        return [np.var(df)]   
-    
+        return [np.var(df)]
+
     @staticmethod
     def last_three_point(df: pd.Series) -> List:
         """
         Возвращает последние три значения в окне.
         """
         return list(df[-3:])
-    
+
     @staticmethod
     def window_mean_incr(df: pd.Series) -> List:
         """
@@ -66,7 +65,7 @@ class WindowFunctions:
         """
         incr = np.array(df[1:]) - np.array(df[:-1])
         return [np.mean(incr)]
-    
+
     @staticmethod
     def half_mean_incr(df: pd.Series) -> List:
         """
@@ -75,7 +74,7 @@ class WindowFunctions:
         incr = np.array(df[1:]) - np.array(df[:-1])
         sep = len(incr) // 2
         return [np.mean(incr[sep:])]
-    
+
     @staticmethod
     def quarter_mean_incr(df: pd.Series) -> List:
         """
@@ -84,7 +83,7 @@ class WindowFunctions:
         incr = np.array(df[1:]) - np.array(df[:-1])
         sep = len(incr) // 4
         return [np.mean(incr[sep:])]
-    
+
     @staticmethod
     def window_max_incr(df: pd.Series) -> List:
         """
@@ -92,7 +91,7 @@ class WindowFunctions:
         """
         incr = np.array(df[1:]) - np.array(df[:-1])
         return [np.max(incr)]
-    
+
     @staticmethod
     def window_min_incr(df: pd.Series) -> List:
         """
@@ -100,7 +99,7 @@ class WindowFunctions:
         """
         incr = np.array(df[1:]) - np.array(df[:-1])
         return [np.min(incr)]
-    
+
     @staticmethod
     def window_var_incr(df: pd.Series) -> List:
         """
@@ -108,7 +107,7 @@ class WindowFunctions:
         """
         incr = np.array(df[1:]) - np.array(df[:-1])
         return [np.var(incr)]
-    
+
     @staticmethod
     def last_three_incr(df: pd.Series) -> List[float]:
         """
@@ -118,7 +117,7 @@ class WindowFunctions:
         return list(incr[-3:])
 
 
-class PointFunctions:
+class SingleDayFunctions:
     @staticmethod
     def dummy_month(date: pd.Timestamp) -> List[int]:
         """
@@ -127,7 +126,7 @@ class PointFunctions:
         res = [0] * 12
         res[date.month - 1] = 1
         return res
-    
+
     @staticmethod
     def dummy_weekday(date: pd.Timestamp) -> List[int]:
         """
@@ -136,7 +135,7 @@ class PointFunctions:
         res = [0] * 7
         res[date.weekday()] = 1
         return res
-    
+
     @staticmethod
     def usd_rate(date: pd.Timestamp) -> float:
         """
@@ -148,16 +147,16 @@ class PointFunctions:
 
 def set_usd_history(path: str, sep: str = ',', start_date: str = '2017-01-01') -> NoReturn:
     """
-    Меняет значение глобальной переменной USD_HISTORY - файл с данными по курсу доллара. См. также
+    Задаёт или меняет значение глобальной переменной USD_HISTORY - файл с данными по курсу доллара. См. также
     PointFunctions.usd_rate
 
     Parameters
     ----------
     path: str
-        Путь, по которому лежит новый файл с историей курса. Файл должен быть в формате .csv
-    sep: str
+        Путь, по которому лежит файл с историей курса либо новый файл с историей. Файл должен быть в формате .csv
+    sep: str, default=','
         Разделитель данных в файле с историей.
-    start_date: str
+    start_date: str, default='2017-01-01'
         Дата, с которой должна начинаться история.
 
     Returns
@@ -182,6 +181,24 @@ def set_usd_history(path: str, sep: str = ',', start_date: str = '2017-01-01') -
     usd['usd'] = usd_rub[['usd']]
     usd.interpolate(inplace=True)
     USD_HISTORY = usd
+
+
+def increment(arr: Iterable, start_val: float) -> pd.DataFrame:
+    """
+    По исходному временному ряду получает ряд приростов (прирост - разница значений текущей даты и предшествующей)
+
+    Parameters
+    ----------
+    arr: Iterable
+        Исходный временной ряд
+    start_val: float
+        Стартовое значение, не входящее в исходный временной ряд (для вычисления прироста от первого дня ряда)
+    Returns
+    -------
+    pd.DataFrame из ряда приростов
+    """
+    np_arr = np.array(arr)
+    return pd.DataFrame(np_arr - np.insert(np_arr[:-1], 0, start_val).reshape(-1, 1)).reset_index(drop=True)
 
 
 def build_window_features(series: pd.DataFrame) -> pd.Series:
@@ -212,12 +229,12 @@ def build_window_features(series: pd.DataFrame) -> pd.Series:
     -------
     pd.Series с собранными фичами для данного окна. В качестве индексов - названия фичи.
     """
-    df = np.array(series.y)
-    func_names = [method for method in dir(WindowFunctions) if method.startswith('__') is False]
+    target = np.array(series.y)
+    func_names = [method for method in dir(WindowFunctions) if not method.startswith('__')]
     features = []
     names = []
     for func_name in func_names:
-        res = eval('WindowFunctions.' + func_name)(df)
+        res = eval('WindowFunctions.' + func_name)(target)
         if len(res) > 1:
             name = [func_name + '_' + str(i) for i in range(len(res))]
         else:
@@ -227,13 +244,12 @@ def build_window_features(series: pd.DataFrame) -> pd.Series:
     return pd.Series(features, index=names)
 
 
-def build_point_features(points: pd.DataFrame) -> pd.DataFrame:
+def build_single_day_features(points: pd.DataFrame) -> pd.DataFrame:
     """
     Собирает набор точечных фичей для отдельной даты. В фичи входит:
     1. One hot encoding месяц
     2. One hot encoding день недели
-    3. Курс доллара на выбранную дату
-
+    3. Курс доллара на выбранную дату (если if_usd = True)
     Использует .csv файл с историей курса
 
     Parameters
@@ -249,15 +265,17 @@ def build_point_features(points: pd.DataFrame) -> pd.DataFrame:
     names = []
     for i in range(len(points)):
         res.append([])
-        
+
     # Месяц, день недели и курс доллара
     names.extend(list(calendar.month_abbr)[1:])
     names.extend(list(calendar.day_abbr))
-    names.append('usd')
+    if USD_HISTORY is not None:
+        names.append('usd')
     for i, d in enumerate(points.ds.values):
         date = pd.to_datetime(d)
-        res[i].extend(PointFunctions.dummy_month(date))
-        res[i].extend(PointFunctions.dummy_weekday(date))
-        res[i].append(PointFunctions.usd_rate(date))
-    
+        res[i].extend(SingleDayFunctions.dummy_month(date))
+        res[i].extend(SingleDayFunctions.dummy_weekday(date))
+        if USD_HISTORY is not None:
+            res[i].append(SingleDayFunctions.usd_rate(date))
+
     return pd.DataFrame(res, columns=names)
