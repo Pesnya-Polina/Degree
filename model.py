@@ -3,7 +3,7 @@ import pandas as pd
 import os
 import pickle
 import features as f
-from typing import Iterable, Set, Sequence, Tuple, Dict
+from typing import Iterable, Set, Sequence, Tuple
 from sklearn.metrics import mean_absolute_error
 from tqdm import tqdm
 from sklearn.linear_model import SGDRegressor
@@ -140,12 +140,12 @@ class MSKUTimeSeriesModel:
         self.num_folds = num_folds
         self.with_refit = with_refit
 
-        self.models: Dict
-        self.scalers: Dict
+        self.models = dict()
+        self.scalers = dict()
 
-        self.first_models: Dict
-        self.first_scalers: Dict
-        self.best_msku: int
+        self.first_models = dict()
+        self.first_scalers = dict()
+        self.best_msku = None
 
     def fit(self, time_series: pd.DataFrame):
         """
@@ -494,20 +494,62 @@ class MSKUTimeSeriesModel:
 
         os.mkdir(f'{path}/model/')
         for msku in self.models:
-            os.mkdir(f'{path}/model/msku {msku}/')
-            with open(f'{path}/model/msku {msku}/scaler', 'wb') as file:
+            os.mkdir(f'{path}/model/msku_{msku}/')
+            with open(f'{path}/model/msku_{msku}/scaler', 'wb') as file:
                 pickle.dump(self.scalers[msku], file)
             for i in range(len(self.models[msku])):
-                with open(f'{path}/model/msku {msku}/model_{i}', 'wb') as file:
+                with open(f'{path}/model/msku_{msku}/model_{i}', 'wb') as file:
                     pickle.dump(self.models[msku][i], file)
 
         if self.with_refit:
+            with open(f'{path}/best_msku', 'x') as file:
+                file.write(str(self.best_msku))
             os.mkdir(f'{path}/first_model/')
             for msku in self.first_models:
-                os.mkdir(f'{path}/first_model/msku {msku}/')
+                os.mkdir(f'{path}/first_model/msku_{msku}/')
 
-                with open(f'{path}/first_model/msku {msku}/scaler', 'wb') as file:
+                with open(f'{path}/first_model/msku_{msku}/scaler', 'wb') as file:
                     pickle.dump(self.scalers[msku], file)
                 for i in range(len(self.models[msku])):
-                    with open(f'{path}/first_model/msku {msku}/model_{i}', 'wb') as file:
+                    with open(f'{path}/first_model/msku_{msku}/model_{i}', 'wb') as file:
                         pickle.dump(self.models[msku][i], file)
+
+    def download_models(self, path_to_download: str):
+        if path_to_download[-1] == '/':
+            path = path_to_download[:-1]
+        else:
+            path = path_to_download
+
+        # Проверяем, переобучалась ли модель
+        if len(os.listdir(f'{path}')) == 2:
+            self.with_refit = True
+
+        # Получаем длину прогнозируемого интервала
+        msku_dir = os.listdir(f'{path}/model')[0]
+        self.forecast_period = len(os.listdir(f'{path}/model/{msku_dir}')) - 1
+
+        # Получаем информацию о лучшей модели, если было переобучение
+        if self.with_refit:
+            with open(f'{path}/best_msku', 'r') as file:
+                self.best_msku = int(file.readline())
+
+        # Скачиваем итоговые модели
+        for msku in [int(x[5:]) for x in os.listdir(f'{path}/model')]:
+            self.models[msku] = []
+            for i in range(self.forecast_period):
+                with open(f'{path}/model/msku_{msku}/model_{i}', 'rb') as file:
+                    model = pickle.load(file)
+                    self.models[msku].append(model)
+            with open(f'{path}/model/msku_{msku}/scaler', 'rb') as file:
+                self.scalers[msku] = pickle.load(file)
+
+        #  Скачиваем первоначальные модели (если таковые были).
+        if self.with_refit:
+            for msku in [int(x[5:]) for x in os.listdir(f'{path}/first_model')]:
+                self.first_models[msku] = []
+                for i in range(self.forecast_period):
+                    with open(f'{path}/first_model/msku_{msku}/model_{i}', 'rb') as file:
+                        model = pickle.load(file)
+                        self.first_models[msku].append(model)
+                with open(f'{path}/first_model/msku_{msku}/scaler', 'rb') as file:
+                    self.first_models[msku] = pickle.load(file)
