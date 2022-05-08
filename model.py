@@ -492,6 +492,9 @@ class MSKUTimeSeriesModel:
         else:
             path = path_to_save
 
+        with open(f'{path}/window_width', 'x') as file:
+            file.write(str(self.window_width))
+
         os.mkdir(f'{path}/model/')
         for msku in self.models:
             os.mkdir(f'{path}/model/msku_{msku}/')
@@ -515,6 +518,15 @@ class MSKUTimeSeriesModel:
                         pickle.dump(self.models[msku][i], file)
 
     def download_models(self, path_to_download: str):
+        """
+        Считывает сохранённую модель и записывает её в атрибуты класса. Для использования необходимо правильно
+        инициализировать модель: передать данные той же валюты.
+
+        Parameters
+        ----------
+        path_to_download: str
+            Путь до сохранённой модели.
+        """
         if path_to_download[-1] == '/':
             path = path_to_download[:-1]
         else:
@@ -527,6 +539,10 @@ class MSKUTimeSeriesModel:
         # Получаем длину прогнозируемого интервала
         msku_dir = os.listdir(f'{path}/model')[0]
         self.forecast_period = len(os.listdir(f'{path}/model/{msku_dir}')) - 1
+
+        # Получаем ширину окна
+        with open(f'{path}/window_width', 'r') as file:
+            self.window_width = int(file.readline())
 
         # Получаем информацию о лучшей модели, если было переобучение
         if self.with_refit:
